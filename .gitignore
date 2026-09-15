@@ -1,0 +1,24 @@
+# ---- Datos personales: NUNCA subir ----
+data/
+*.db
+*.db-wal
+*.db-shm
+config.json
+# Exports crudos de Spotify (contienen IP, dispositivos, país)
+Streaming_History_*.json
+StreamingHistory*.json
+*.zip
+ReadMeFirst*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
