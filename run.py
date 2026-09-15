@@ -23,7 +23,8 @@ from pathlib import Path
 # La consola de Windows usa cp1252 y revienta con acentos o flechas.
 for stream in (sys.stdout, sys.stderr):
     try:
-        stream.reconfigure(encoding="utf-8", errors="replace")
+        # line_buffering para que el banner salga ya, aunque se redirija a un archivo.
+        stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
     except (AttributeError, ValueError):
         pass
 

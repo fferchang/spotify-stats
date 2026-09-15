@@ -594,6 +594,13 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   .nav__link .ico { width: 17px; height: 17px; }
   .nav__foot { display: none; }
   .filters { padding: var(--s-3) var(--s-4); top: 49px; }
+  /* Los chips en tres filas se comen la pantalla: mejor un carril que se desliza. */
+  .chips {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    margin: 0 calc(var(--s-4) * -1); padding: 0 var(--s-4); width: 100vw;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .filters__row { gap: var(--s-2); }
   .main { padding: var(--s-5) var(--s-4) var(--s-8); }
   .hero { grid-template-columns: 1fr; }
   .hero__main { padding: var(--s-5); }
