@@ -194,15 +194,29 @@ def pending_total() -> int:
     return len(_pending_tracks()) + len(_pending_artists()) + len(_pending_shows())
 
 
+# La UI habla en plural ("tracks", "albums"); el worker, en singular. La portada
+# de un álbum se obtiene pidiendo su tema representativo, así que ambos van a
+# "track".
+_JOB_KIND = {
+    "tracks": "track", "track": "track",
+    "albums": "track", "album": "track",
+    "artists": "artist", "artist": "artist",
+    "shows": "episode", "episode": "episode",
+}
+
+
 def queue_priority(kind: str, ids: list[str]) -> int:
     """La UI empuja acá lo que está mostrando para que se traiga primero."""
+    job_kind = _JOB_KIND.get(kind)
+    if not job_kind:
+        return 0
     added = 0
     with _state_lock:
         have = set(_priority)
         for i in ids:
-            if i and (kind, i) not in have:
-                _priority.insert(0, (kind, i))
-                have.add((kind, i))
+            if i and (job_kind, i) not in have:
+                _priority.insert(0, (job_kind, i))
+                have.add((job_kind, i))
                 added += 1
         del _priority[400:]
     return added
@@ -288,7 +302,7 @@ def _run(full: bool) -> None:
 
             with _state_lock:
                 _state["phase"] = {"track": "tracks", "artist": "artists",
-                                   "episode": "podcasts"}[job[0]]
+                                   "episode": "podcasts"}.get(job[0], "otros")
                 _state["last"] = job[1]
             try:
                 _fetch_one(job[0], job[1])
