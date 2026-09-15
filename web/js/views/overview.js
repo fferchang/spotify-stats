@@ -2,13 +2,12 @@
 
 import { api } from '../api.js';
 import { areaChart, barsChart, clockChart } from '../charts.js';
-import {
-  ICON, art, hydrate, kpi, rankList, section, tileGrid, empty, alert,
-} from '../ui.js';
+import { ICON, art, hydrate, kpi, rankList, section, tileGrid, empty } from '../ui.js';
 import {
   num, num1, dur, durParts, durLong, clock, pct, esc, fdate, fshort, fdatetime,
   hourLabel, DIAS, DIAS_LARGO, MESES,
 } from '../fmt.js';
+import { t } from '../i18n.js';
 
 const feature = (item, kind, label) => {
   if (!item) return '<div class="card"></div>';
@@ -20,7 +19,8 @@ const feature = (item, kind, label) => {
       <span class="kpi__label" style="display:block">${label}</span>
       <span style="display:block;font-size:17px;font-weight:620;letter-spacing:-.015em;margin-top:4px;
             overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.name)}</span>
-      <span class="kpi__foot" style="display:block">${num(item.plays)} reproducciones · ${dur(item.ms)}</span>
+      <span class="kpi__foot" style="display:block">${
+        t('{n} reproducciones · {time}', { n: num(item.plays), time: dur(item.ms) })}</span>
     </span>
   </button>`;
 };
@@ -39,10 +39,10 @@ export async function render(params) {
 
   if (!s.plays) {
     return {
-      html: `<div class="head"><h1 class="head__title">Resumen</h1>
-        <p class="head__sub">${esc(d.range.label)}</p></div>
-        ${empty('No hay escuchas en este período',
-          'Probá con un rango más amplio, o mirá “Todo el historial”.')}`,
+      html: `<div class="head"><h1 class="head__title">${t('Resumen')}</h1>
+        <p class="head__sub">${esc(t(d.range.label))}</p></div>
+        ${empty(t('No hay escuchas en este período'),
+          t('Probá con un rango más amplio, o mirá “Todo el historial”.'))}`,
       mount() {},
     };
   }
@@ -55,85 +55,93 @@ export async function render(params) {
 
   const html = `
   <div class="head">
-    <h1 class="head__title">Resumen</h1>
-    <p class="head__sub">${esc(d.range.label)} · ${fshort(d.range.start)} → ${fshort(d.range.end - 1)}</p>
+    <h1 class="head__title">${t('Resumen')}</h1>
+    <p class="head__sub">${esc(t(d.range.label))} · ${fshort(d.range.start)} → ${fshort(d.range.end - 1)}</p>
   </div>
 
   <div class="hero">
     <div class="hero__main">
-      <div class="hero__eyebrow">Tiempo escuchado</div>
+      <div class="hero__eyebrow">${t('Tiempo escuchado')}</div>
       <div class="hero__figure num">${figure}<small>${unit}</small></div>
       <p class="hero__caption">
-        ${num(s.plays)} reproducciones de <b>${num(s.artists)}</b> artistas
-        y <b>${num(s.tracks)}</b> canciones distintas.
-        ${topArtist ? `Mandó <b>${esc(topArtist.name)}</b>, con ${num(topArtist.plays)} escuchas.` : ''}
+        ${t('{plays} reproducciones de <b>{artists}</b> artistas y <b>{tracks}</b> canciones distintas.',
+          { plays: num(s.plays), artists: num(s.artists), tracks: num(s.tracks) })}
+        ${topArtist ? t('Mandó <b>{name}</b>, con {plays} escuchas.',
+          { name: esc(topArtist.name), plays: num(topArtist.plays) }) : ''}
       </p>
       <p class="hero__caption mut" style="font-size:13px;margin-top:var(--s-2)">
-        Son ${num1(s.ms / 3600000 / Math.max(1, s.days_active))} h por día activo,
-        repartidas en ${num(s.days_active)} de ${num(s.days_span)} días (${pct(s.coverage)}).
+        ${t('Son {h} h por día activo, repartidas en {days} de {span} días ({pct}).', {
+          h: num1(s.ms / 3600000 / Math.max(1, s.days_active)),
+          days: num(s.days_active), span: num(s.days_span), pct: pct(s.coverage),
+        })}
       </p>
     </div>
     <div class="hero__side">
-      ${feature(topArtist, 'artists', 'Artista nº 1')}
-      ${feature(d.top_tracks[0], 'tracks', 'Canción nº 1')}
+      ${feature(topArtist, 'artists', t('Artista nº 1'))}
+      ${feature(d.top_tracks[0], 'tracks', t('Canción nº 1'))}
     </div>
   </div>
 
   <div class="kpis" style="margin-top:var(--s-5)">
-    ${kpi('Reproducciones', num(s.plays), '', `${num1(s.plays_per_active_day)} por día activo`)}
-    ${kpi('Artistas', num(s.artists), '', `${num(s.albums)} álbumes`)}
-    ${kpi('Canciones', num(s.tracks), '', `media de ${clock(s.avg_play_ms)} por escucha`)}
-    ${kpi('Días con música', num(s.days_active), '', `${pct(s.coverage)} del período`)}
-    ${kpi('Se saltea', pct(s.skip_rate), '', `de ${num(s.raw_plays)} intentos`)}
-    ${kpi('En aleatorio', pct(s.shuffle_rate), '', s.offline_rate > 1 ? `${pct(s.offline_rate)} sin conexión` : 'del total')}
+    ${kpi(t('Reproducciones'), num(s.plays), '',
+      t('{n} por día activo', { n: num1(s.plays_per_active_day) }))}
+    ${kpi(t('Artistas'), num(s.artists), '', t('{n} álbumes', { n: num(s.albums) }))}
+    ${kpi(t('Canciones'), num(s.tracks), '', t('media de {t} por escucha', { t: clock(s.avg_play_ms) }))}
+    ${kpi(t('Días con música'), num(s.days_active), '', t('{pct} del período', { pct: pct(s.coverage) }))}
+    ${kpi(t('Se saltea'), pct(s.skip_rate), '', t('de {n} intentos', { n: num(s.rate_base || s.raw_plays) }))}
+    ${kpi(t('En aleatorio'), pct(s.shuffle_rate), '',
+      s.offline_rate > 1 ? t('{pct} sin conexión', { pct: pct(s.offline_rate) }) : t('del total'))}
   </div>
 
-  ${section('Cómo evolucionó', `
+  ${section(t('Cómo evolucionó'), `
     <div class="card card--pad"><div class="chartbox" id="tl"></div></div>`,
-    { note: { day: 'por día', week: 'por semana', month: 'por mes', year: 'por año' }[d.timeline.granularity] })}
+    { note: t({ day: 'por día', week: 'por semana', month: 'por mes', year: 'por año' }[d.timeline.granularity]) })}
 
   <div class="cols-2" style="margin-top:var(--s-7)">
     <section>
       <div class="sect__head">
-        <h2 class="sect__title">Artistas</h2>
-        <button type="button" class="sect__link" data-go="artistas">Ver todos</button>
+        <h2 class="sect__title">${t('Artistas')}</h2>
+        <button type="button" class="sect__link" data-go="artistas">${t('Ver todos')}</button>
       </div>
       ${tileGrid(d.top_artists, 'artists', sort)}
     </section>
     <section>
       <div class="sect__head">
-        <h2 class="sect__title">Canciones</h2>
-        <button type="button" class="sect__link" data-go="temas">Ver todas</button>
+        <h2 class="sect__title">${t('Canciones')}</h2>
+        <button type="button" class="sect__link" data-go="temas">${t('Ver todas')}</button>
       </div>
       ${rankList(d.top_tracks, 'tracks', sort, { detailKind: 'track' })}
     </section>
   </div>
 
-  ${section('Récords del período', `<div class="cols-3">
-    ${r.best_day ? recordCard(ICON.fuego, 'Mejor día', fdate(r.best_day.date),
-      `${dur(r.best_day.ms)} en ${num(r.best_day.plays)} reproducciones` +
-      (r.best_day.top_artist ? ` · sobre todo ${esc(r.best_day.top_artist)}` : '')) : ''}
-    ${r.streak ? recordCard(ICON.calendario, 'Racha más larga', `${num(r.streak.days)} días seguidos`,
+  ${section(t('Récords del período'), `<div class="cols-3">
+    ${r.best_day ? recordCard(ICON.fuego, t('Mejor día'), fdate(r.best_day.date),
+      t('{time} en {n} reproducciones', { time: dur(r.best_day.ms), n: num(r.best_day.plays) })
+      + (r.best_day.top_artist ? t(' · sobre todo {name}', { name: esc(r.best_day.top_artist) }) : '')) : ''}
+    ${r.streak ? recordCard(ICON.calendario, t('Racha más larga'),
+      t('{n} días seguidos', { n: num(r.streak.days) }),
       `${fshort(r.streak.start)} → ${fshort(r.streak.end)}`) : ''}
-    ${r.longest_session ? recordCard(ICON.reloj, 'Sesión más larga', durLong(r.longest_session.ms),
-      `${num(r.longest_session.plays)} temas sin parar, desde ${fdatetime(r.longest_session.start)}`) : ''}
-    ${r.obsession ? recordCard(ICON.disco, 'Obsesión', `${num(r.obsession.plays)}× en un día`,
-      `${esc(r.obsession.name || '')} — ${esc(r.obsession.artist || '')}, el ${fshort(r.obsession.date)}`) : ''}
-    ${recordCard(ICON.luna, 'De madrugada', `${pct(r.night_owl?.pct || 0)}`,
-      `${num(r.night_owl?.plays || 0)} reproducciones entre las 0 y las 5`)}
-    ${recordCard(ICON.reloj, 'Hora pico', hourLabel(peakHour),
-      `Tu día fuerte es el ${DIAS_LARGO[peakDay]}`)}
+    ${r.longest_session ? recordCard(ICON.reloj, t('Sesión más larga'), durLong(r.longest_session.ms),
+      t('{n} temas sin parar, desde {when}',
+        { n: num(r.longest_session.plays), when: fdatetime(r.longest_session.start) })) : ''}
+    ${r.obsession ? recordCard(ICON.disco, t('Obsesión'),
+      t('{n}× en un día', { n: num(r.obsession.plays) }),
+      `${esc(r.obsession.name || '')} — ${esc(r.obsession.artist || '')}, ${fshort(r.obsession.date)}`) : ''}
+    ${recordCard(ICON.luna, t('De madrugada'), pct(r.night_owl?.pct || 0),
+      t('{n} reproducciones entre las 0 y las 5', { n: num(r.night_owl?.plays || 0) }))}
+    ${recordCard(ICON.reloj, t('Hora pico'), hourLabel(peakHour),
+      t('Tu día fuerte es el {day}', { day: DIAS_LARGO[peakDay] }))}
   </div>`)}
 
-  ${section('Tus horarios', `<div class="cols-2">
+  ${section(t('Tus horarios'), `<div class="cols-2">
     <div class="card card--pad">
-      <div class="sect__note" style="margin-bottom:var(--s-3)">Reproducciones por hora del día</div>
+      <div class="sect__note" style="margin-bottom:var(--s-3)">${t('Reproducciones por hora del día')}</div>
       <div class="chartbox" id="clock" style="display:flex;justify-content:center"></div>
     </div>
     <div class="card card--pad">
-      <div class="sect__note" style="margin-bottom:var(--s-3)">Reproducciones por día de la semana</div>
+      <div class="sect__note" style="margin-bottom:var(--s-3)">${t('Reproducciones por día de la semana')}</div>
       <div class="chartbox" id="wd"></div>
-      <div class="sect__note" style="margin:var(--s-5) 0 var(--s-3)">Reproducciones por mes del año</div>
+      <div class="sect__note" style="margin:var(--s-5) 0 var(--s-3)">${t('Reproducciones por mes del año')}</div>
       <div class="chartbox" id="mo"></div>
     </div>
   </div>`)}`;
@@ -144,7 +152,6 @@ export async function render(params) {
       areaChart(root.querySelector('#tl'), d.timeline.points, {
         metric: sort === 'ms' ? 'ms' : 'plays',
         granularity: d.timeline.granularity,
-        label: 'Evolución de la escucha',
         height: 210,
       });
       clockChart(root.querySelector('#clock'), d.patterns.hours);

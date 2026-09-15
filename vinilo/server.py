@@ -9,14 +9,16 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import db, enrich, ingest, stats
+from . import db, enrich, ingest, stats, sync
 from .spotify import SpotifyError, client
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 MAX_UPLOAD = 400 * 1024 * 1024  # 400 MB: alcanza para el .zip entero de Spotify
 
 DEFAULTS = {
+    "lang": "es",
     "min_ms": 30000,
+    "sync_interval": sync.DEFAULT_INTERVAL,
     "tz_offset": 0,
     "market": "AR",
     "auth_mode": "client_credentials",
@@ -169,6 +171,7 @@ class Handler(BaseHTTPRequestHandler):
                 "config": {k: cfg(k) for k in DEFAULTS},
                 "spotify": client.status(),
                 "enrich": enrich.state(),
+                "sync": sync.state(),
                 "files": [dict(r) for r in db.q(
                     "SELECT name, rows, added, imported_at FROM files ORDER BY name")],
                 "years": [r["y"] for r in db.q(
@@ -178,10 +181,15 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/config":
             if method == "POST":
                 data = self.read_json()
-                for k in ("min_ms", "tz_offset", "market", "sort",
+                for k in ("min_ms", "tz_offset", "market", "sort", "sync_interval", "lang",
                           "client_id", "client_secret", "auth_mode"):
                     if k in data:
                         v = data[k]
+                        if k == "sync_interval":
+                            try:
+                                v = max(sync.MIN_INTERVAL, int(v))
+                            except (TypeError, ValueError):
+                                continue
                         if k in ("min_ms", "tz_offset"):
                             try:
                                 v = int(v)
@@ -314,8 +322,26 @@ class Handler(BaseHTTPRequestHandler):
             return self.json(client.ping())
 
         if route == "/api/spotify/logout" and method == "POST":
+            sync.stop()
             client.logout()
             return self.json({"ok": True, "spotify": client.status()})
+
+        if route == "/api/sync/status":
+            return self.json(sync.state())
+
+        if route == "/api/sync/now" and method == "POST":
+            res = sync.run_once()
+            res["state"] = sync.state()
+            return self.json(res)
+
+        if route == "/api/sync/start" and method == "POST":
+            return self.json({**sync.start(), "state": sync.state()})
+
+        if route == "/api/sync/stop" and method == "POST":
+            return self.json({**sync.stop(), "state": sync.state()})
+
+        if route == "/api/spotify/tops":
+            return self.json(sync.spotify_tops(_int(qs, "limit", 5, 1, 20)))
 
         if route == "/api/enrich/status":
             return self.json(enrich.state())
@@ -344,6 +370,8 @@ class Handler(BaseHTTPRequestHandler):
                     client.pkce_exchange(qs.get("code", ""), qs.get("state", ""),
                                          f"{self.base_url}/auth/callback")
                     msg = None
+                    if db.get_meta("sync_enabled", False):
+                        sync.start()
                 except SpotifyError as e:
                     msg = str(e)
             dest = "/#/ajustes" + ("?auth_error=" + urllib.parse.quote(msg) if msg else "?auth=ok")

@@ -210,8 +210,26 @@ def new_stats() -> dict:
     return {"files": 0, "parsed": 0, "added": 0, "skipped": 0, "errors": [], "file_list": []}
 
 
+def _drop_synced_overlap(stats: dict) -> None:
+    """Donde llega el export, manda el export.
+
+    El sync en vivo anota los mismos hechos con menos detalle (sin ms reales,
+    sin saltos, sin dispositivo). En cuanto el export cubre ese tramo, las
+    filas sincronizadas sobran: son la versión pobre de lo mismo.
+    """
+    row = db.q1("SELECT MIN(ts) a, MAX(ts) b FROM plays WHERE origin='export'")
+    if not row or row["a"] is None:
+        return
+    cur = db.conn().execute(
+        "DELETE FROM plays WHERE origin='sync' AND ts BETWEEN ? AND ?",
+        (row["a"], row["b"]))
+    if cur.rowcount > 0:
+        stats["replaced_sync"] = cur.rowcount
+
+
 def finalize(stats: dict) -> dict:
     """Reconstruye dimensiones y devuelve un resumen listo para la UI."""
+    _drop_synced_overlap(stats)
     db.rebuild_dimensions()
     row = db.q1("SELECT COUNT(*) n, MIN(ts) a, MAX(ts) b FROM plays")
     stats["total_plays"] = row["n"] or 0
@@ -221,5 +239,6 @@ def finalize(stats: dict) -> dict:
     stats["artists"] = db.scalar("SELECT COUNT(*) FROM dim_artist")
     stats["albums"] = db.scalar("SELECT COUNT(*) FROM dim_album")
     stats["shows"] = db.scalar("SELECT COUNT(*) FROM dim_show")
+    stats["synced_rows"] = db.scalar("SELECT COUNT(*) FROM plays WHERE origin='sync'")
     db.set_meta("last_import", int(time.time()))
     return stats

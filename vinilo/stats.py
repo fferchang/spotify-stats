@@ -159,6 +159,10 @@ def pick_granularity(rng: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Resumen
 # --------------------------------------------------------------------------- #
+def _rate(hits, known) -> float:
+    return round(100 * (hits or 0) / known, 1) if known else 0.0
+
+
 def summary(f: Filt) -> dict:
     row = db.q1(f"""
         SELECT COUNT(*) plays, COALESCE(SUM(ms_played),0) ms,
@@ -171,12 +175,19 @@ def summary(f: Filt) -> dict:
     """, f.params)
 
     # Sin filtro de duración: sirve para medir cuánto se saltea.
+    # Cada tasa se divide por las filas que REALMENTE traen ese dato: las que
+    # entraron por sync no lo tienen, y meterlas en el denominador diluiría el
+    # porcentaje hasta volverlo mentira.
     raw = db.q1("""
         SELECT COUNT(*) plays, COALESCE(SUM(ms_played),0) ms,
                SUM(CASE WHEN skipped=1 THEN 1 ELSE 0 END) skipped,
+               SUM(skipped IS NOT NULL) skipped_known,
                SUM(CASE WHEN shuffle=1 THEN 1 ELSE 0 END) shuffled,
+               SUM(shuffle IS NOT NULL) shuffle_known,
                SUM(CASE WHEN offline=1 THEN 1 ELSE 0 END) offline,
-               SUM(CASE WHEN incognito=1 THEN 1 ELSE 0 END) incognito
+               SUM(offline IS NOT NULL) offline_known,
+               SUM(CASE WHEN incognito=1 THEN 1 ELSE 0 END) incognito,
+               SUM(origin='sync') synced
         FROM plays WHERE ts >= ? AND ts < ? AND kind = ?
     """, (f.rng["start"], f.rng["end"], f.kind))
 
@@ -197,10 +208,12 @@ def summary(f: Filt) -> dict:
         "plays_per_active_day": round((row["plays"] or 0) / days, 1) if days else 0,
         "avg_play_ms": round(row["avg_ms"] or 0),
         "raw_plays": raw_plays, "raw_ms": raw["ms"] or 0,
-        "skip_rate": round(100 * (raw["skipped"] or 0) / raw_plays, 1) if raw_plays else 0,
-        "shuffle_rate": round(100 * (raw["shuffled"] or 0) / raw_plays, 1) if raw_plays else 0,
-        "offline_rate": round(100 * (raw["offline"] or 0) / raw_plays, 1) if raw_plays else 0,
+        "skip_rate": _rate(raw["skipped"], raw["skipped_known"]),
+        "shuffle_rate": _rate(raw["shuffled"], raw["shuffle_known"]),
+        "offline_rate": _rate(raw["offline"], raw["offline_known"]),
+        "rate_base": raw["skipped_known"] or 0,
         "incognito": raw["incognito"] or 0,
+        "synced": raw["synced"] or 0,
     }
 
 
@@ -567,7 +580,7 @@ def history(f: Filt, limit: int = 100, offset: int = 0, query: str = "") -> dict
         SELECT p.ts, p.ms_played, p.track_name, p.artist_name, p.album_name,
                p.episode_name, p.show_name, p.platform, p.shuffle, p.skipped,
                p.reason_start, p.reason_end, p.track_key, p.artist_key, p.album_key,
-               t.track_id
+               p.origin, t.track_id
         FROM plays p LEFT JOIN dim_track t ON t.track_key = p.track_key
         WHERE {where} ORDER BY p.ts DESC LIMIT ? OFFSET ?""", params + (limit, offset))
     return {"items": [dict(r) for r in rows], "total": total}

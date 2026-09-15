@@ -34,7 +34,9 @@ from . import db
 API = "https://api.spotify.com/v1"
 ACCOUNTS = "https://accounts.spotify.com"
 UA = "Vinilo/1.0 (+local stats app)"
-SCOPES = "user-read-private"
+# Lectura del historial reciente (sync en vivo) y de los rankings propios.
+SCOPES = "user-read-recently-played user-top-read"
+REQUIRED_SCOPES = ("user-read-recently-played", "user-top-read")
 
 
 class SpotifyError(Exception):
@@ -111,6 +113,8 @@ class Spotify:
             "has_client_id": bool(self.client_id),
             "has_secret": bool(self.client_secret),
             "logged_in": bool(db.get_meta("refresh_token")),
+            "can_sync": self.can_sync(),
+            "missing_scopes": self.missing_scopes(),
             "cooldown": max(0, round(self.cooldown_until - time.time())),
             "last_error": self.last_error,
         }
@@ -133,6 +137,8 @@ class Spotify:
             })
             if payload.get("refresh_token"):
                 db.set_meta("refresh_token", payload["refresh_token"])
+            if payload.get("scope"):
+                db.set_meta("granted_scopes", payload["scope"].split())
         else:
             if not (self.client_id and self.client_secret):
                 raise SpotifyError("Faltan el Client ID y el Client Secret")
@@ -228,6 +234,37 @@ class Spotify:
         # Desde feb-2026 el máximo de `limit` en /search es 10.
         return self.get("/search", {"q": query, "type": type_, "limit": min(limit, 10)})
 
+    def recently_played(self, after: int | None = None, limit: int = 50):
+        """Últimas reproducciones. `after` es epoch en MILISEGUNDOS, exclusivo.
+
+        Spotify devuelve como mucho 50 y no deja paginar muy atrás: sirve para
+        ir al día, no para reconstruir el pasado. Tampoco incluye podcasts.
+        """
+        params = {"limit": min(limit, 50)}
+        if after:
+            params["after"] = int(after)
+        return self.get("/me/player/recently-played", params)
+
+    def me_top(self, kind: str = "artists", time_range: str = "medium_term", limit: int = 10):
+        """Rankings propios según Spotify. Sin fechas ni cantidad de escuchas."""
+        return self.get(f"/me/top/{kind}",
+                        {"time_range": time_range, "limit": min(limit, 50)})
+
+    def me(self):
+        return self.get("/me")
+
+    def granted_scopes(self) -> list[str]:
+        return db.get_meta("granted_scopes", []) or []
+
+    def missing_scopes(self) -> list[str]:
+        if self.mode != "pkce" or not db.get_meta("refresh_token"):
+            return list(REQUIRED_SCOPES)
+        have = set(self.granted_scopes())
+        return [s for s in REQUIRED_SCOPES if s not in have]
+
+    def can_sync(self) -> bool:
+        return self.mode == "pkce" and bool(db.get_meta("refresh_token"))             and not self.missing_scopes()
+
     def ping(self) -> dict:
         """Comprueba credenciales pidiendo un tema conocido y estable."""
         try:
@@ -267,10 +304,12 @@ class Spotify:
         db.set_meta("refresh_token", payload["refresh_token"])
         db.set_meta("access_token", payload.get("access_token"))
         db.set_meta("token_expires", time.time() + int(payload.get("expires_in", 3600)))
+        db.set_meta("granted_scopes", (payload.get("scope") or "").split())
         db.set_meta("auth_mode", "pkce")
 
     def logout(self) -> None:
         db.set_meta("refresh_token", None)
+        db.set_meta("granted_scopes", [])
         self.reset_token()
 
 

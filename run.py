@@ -30,7 +30,7 @@ for stream in (sys.stdout, sys.stderr):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from vinilo import db, ingest, server  # noqa: E402
+from vinilo import db, ingest, server, sync  # noqa: E402
 from vinilo.spotify import client  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
@@ -120,6 +120,10 @@ def main() -> None:
     if not client.configured():
         print(paint("  Sin credenciales de Spotify: no habrá portadas ni géneros "
                     "(se configura en Ajustes).", DIM))
+
+    sync.autostart()
+    if db.get_meta("sync_enabled", False):
+        print(paint("  Sincronización en vivo activada.", DIM))
 
     port = free_port(args.host, args.port)
     server.serve(args.host, port)

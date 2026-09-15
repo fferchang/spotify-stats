@@ -7,6 +7,7 @@
 // · Una sola serie => sin leyenda (el título ya la nombra).
 
 import { num, dur, bucketLabel, hourLabel, DIAS, MESES } from './fmt.js';
+import { t } from './i18n.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const HEAT = ['var(--h0)', 'var(--h1)', 'var(--h2)', 'var(--h3)', 'var(--h4)', 'var(--h5)'];
@@ -62,7 +63,7 @@ export function areaChart(box, points, opts = {}) {
   const metric = opts.metric || 'ms';
   const gran = opts.granularity || 'day';
   const fmtV = metric === 'ms' ? dur : num;
-  const unit = metric === 'ms' ? 'escuchado' : 'reproducciones';
+  const unit = metric === 'ms' ? t('escuchado') : t('reproducciones');
 
   responsive(box, (W) => {
     box.querySelectorAll(':scope > svg').forEach((s) => s.remove());
@@ -78,7 +79,7 @@ export function areaChart(box, points, opts = {}) {
     const Y = (v) => pad.t + ih - (v / max) * ih;
 
     const svg = el('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, height: H,
-      role: 'img', 'aria-label': opts.label || 'Evolución en el tiempo' });
+      role: 'img', 'aria-label': opts.label || t('Cómo evolucionó') });
 
     // Rejilla horizontal + etiquetas del eje Y.
     for (let i = 0; i <= 3; i++) {
@@ -133,7 +134,7 @@ export function areaChart(box, points, opts = {}) {
       dot.setAttribute('cx', x); dot.setAttribute('cy', y); dot.setAttribute('opacity', 1);
       tip.show((x / W) * box.clientWidth, (y / H) * H,
         `<b>${bucketLabel(p.t, gran)}</b>${fmtV(p[metric])} ${unit}` +
-        (metric === 'ms' ? `<span> · ${num(p.plays)} repr.</span>` : ''));
+        (metric === 'ms' ? `<span> · ${num(p.plays)} ${t('repr.')}</span>` : ''));
     };
     const onLeave = () => { cross.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); tip.hide(); };
     svg.addEventListener('pointermove', onMove);
@@ -158,7 +159,7 @@ export function barsChart(box, values, labels, opts = {}) {
     const bw = Math.max(3, Math.min(opts.maxBar || 34, slot - 2)); // 2px de aire entre barras
 
     const svg = el('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, height: H,
-      role: 'img', 'aria-label': opts.label || 'Distribución' });
+      role: 'img', 'aria-label': opts.label || '' });
     const tip = tooltip(box);
     const peak = values.indexOf(max);
 
@@ -209,7 +210,7 @@ export function clockChart(box, hours, opts = {}) {
 
     const svg = el('svg', { class: 'chart', viewBox: `0 0 ${size} ${size}`,
       width: size, height: size, role: 'img',
-      'aria-label': 'Reproducciones por hora del día' });
+      'aria-label': t('Reproducciones por hora del día') });
     svg.style.margin = '0 auto';
 
     svg.appendChild(el('circle', { cx: c, cy: c, r: rIn - 6, fill: 'none',
@@ -239,7 +240,7 @@ export function clockChart(box, hours, opts = {}) {
         seg.setAttribute('fill-opacity', 1);
         const [tx, ty] = p((a0 + a1) / 2, rOut + 6);
         tip.show((tx / size) * box.clientWidth - (box.clientWidth - size) / 2 * 0, ty,
-          `<b>${hourLabel(h)}</b>${num(v)} reproducciones`);
+          `<b>${hourLabel(h)}</b>${num(v)} ${t('reproducciones')}`);
       });
       seg.addEventListener('pointerleave', () => {
         seg.setAttribute('fill-opacity', h === peak ? 1 : 0.62);
@@ -261,7 +262,7 @@ export function clockChart(box, hours, opts = {}) {
     big.setAttribute('style', 'font-size:22px;font-weight:660;fill:var(--ink)');
     big.textContent = hourLabel(peak);
     const sub = el('text', { x: c, y: c + 15, 'text-anchor': 'middle' });
-    sub.textContent = 'tu hora pico';
+    sub.textContent = t('tu hora pico');
     svg.append(big, sub);
 
     box.insertBefore(svg, box.firstChild);
@@ -311,8 +312,8 @@ export function calendarHeat(box, days, opts = {}) {
       cell.addEventListener('pointerenter', (ev) => {
         const r = box.getBoundingClientRect();
         tip.show(ev.clientX - r.left, ev.clientY - r.top,
-          rec ? `<b>${iso}</b>${dur(rec.ms)} · ${num(rec.plays)} repr.`
-              : `<b>${iso}</b><span>sin escuchas</span>`);
+          rec ? `<b>${iso}</b>${dur(rec.ms)} · ${num(rec.plays)} ${t('repr.')}`
+              : `<b>${iso}</b><span>${t('sin escuchas')}</span>`);
       });
       cell.addEventListener('pointerleave', () => tip.hide());
       grid.appendChild(cell);
@@ -330,7 +331,7 @@ export function calendarHeat(box, days, opts = {}) {
 
   const scale = document.createElement('div');
   scale.className = 'cal__scale';
-  scale.innerHTML = `<span>menos</span>${HEAT.map((c) => `<i style="background:${c}"></i>`).join('')}<span>más</span>`;
+  scale.innerHTML = `<span>${t('menos')}</span>${HEAT.map((c) => `<i style="background:${c}"></i>`).join('')}<span>${t('más')}</span>`;
 
   box.append(months, grid, scale);
 }

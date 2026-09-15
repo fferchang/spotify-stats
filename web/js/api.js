@@ -79,6 +79,12 @@ export const api = {
   spotifyTest: () => request('/api/spotify/test', { method: 'POST', body: {} }),
   spotifyLogout: () => request('/api/spotify/logout', { method: 'POST', body: {} }),
 
+  syncStatus: () => request('/api/sync/status'),
+  syncNow: () => request('/api/sync/now', { method: 'POST', body: {} }),
+  syncStart: () => request('/api/sync/start', { method: 'POST', body: {} }),
+  syncStop: () => request('/api/sync/stop', { method: 'POST', body: {} }),
+  spotifyTops: (limit = 5) => request(`/api/spotify/tops?limit=${limit}`, { group: 'tops' }),
+
   enrichStatus: () => request('/api/enrich/status'),
   enrichStart: (full = true) => request('/api/enrich/start', { method: 'POST', body: { full } }),
   enrichStop: () => request('/api/enrich/stop', { method: 'POST', body: {} }),

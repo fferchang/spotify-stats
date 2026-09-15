@@ -3,28 +3,32 @@
 import { api } from './api.js';
 import { ICON, closeSheet, empty, loading, toast, alert } from './ui.js';
 import { num, esc, fshort } from './fmt.js';
+import { t, setLang } from './i18n.js';
 import { openDetail } from './views/detail.js';
 
 import * as overview from './views/overview.js';
 import * as lists from './views/lists.js';
 import * as patterns from './views/patterns.js';
-import * as genres from './views/genres.js';
+import * as discoveries from './views/discoveries.js';
 import * as historyView from './views/history.js';
 import * as years from './views/years.js';
 import * as settings from './views/settings.js';
 
 const ROUTES = {
-  resumen:   { title: 'Resumen',    icon: 'resumen',   mod: overview },
-  temas:     { title: 'Canciones',  icon: 'temas',     mod: lists },
-  artistas:  { title: 'Artistas',   icon: 'artistas',  mod: lists },
-  albumes:   { title: 'Álbumes',    icon: 'albumes',   mod: lists },
-  generos:   { title: 'Géneros',    icon: 'generos',   mod: genres },
-  habitos:   { title: 'Hábitos',    icon: 'habitos',   mod: patterns },
-  podcasts:  { title: 'Podcasts',   icon: 'podcasts',  mod: lists },
-  anios:     { title: 'Años',       icon: 'anios',     mod: years },
-  historial: { title: 'Historial',  icon: 'historial', mod: historyView },
-  ajustes:   { title: 'Ajustes',    icon: 'ajustes',   mod: settings },
+  resumen:         { title: 'Resumen',         icon: 'resumen',   mod: overview },
+  temas:           { title: 'Canciones',       icon: 'temas',     mod: lists },
+  artistas:        { title: 'Artistas',        icon: 'artistas',  mod: lists },
+  albumes:         { title: 'Álbumes',         icon: 'albumes',   mod: lists },
+  descubrimientos: { title: 'Descubrimientos', icon: 'generos',   mod: discoveries },
+  habitos:         { title: 'Hábitos',         icon: 'habitos',   mod: patterns },
+  podcasts:        { title: 'Podcasts',        icon: 'podcasts',  mod: lists },
+  anios:           { title: 'Años',            icon: 'anios',     mod: years },
+  historial:       { title: 'Historial',       icon: 'historial', mod: historyView },
+  ajustes:         { title: 'Ajustes',         icon: 'ajustes',   mod: settings },
 };
+
+// `generos` quedó del diseño viejo: Spotify borró el campo en 2026.
+const ALIASES = { generos: 'descubrimientos' };
 
 const PERIODS = [
   ['4w', '4 semanas'], ['3m', '3 meses'], ['6m', '6 meses'],
@@ -43,7 +47,8 @@ const main = () => document.getElementById('main');
 /* ─────────────────────────────  Hash  ───────────────────────────── */
 function parseHash() {
   const raw = location.hash.replace(/^#\/?/, '');
-  const [path, query] = raw.split('?');
+  const [rawPath, query] = raw.split('?');
+  const path = ALIASES[rawPath] || rawPath;
   const route = ROUTES[path] ? path : 'resumen';
   const q = new URLSearchParams(query || '');
   return {
@@ -67,17 +72,16 @@ function writeHash(route = state.route, params = state.params) {
   }
   if (params.sort !== 'plays') q.set('sort', params.sort);
   const next = `#/${route}${q.toString() ? `?${q}` : ''}`;
-  if (location.hash !== next) {
-    history.pushState(null, '', next);
-  }
+  if (location.hash !== next) history.pushState(null, '', next);
 }
 
 /* ─────────────────────────────  Navegación  ───────────────────────────── */
 function buildNav() {
   document.getElementById('navList').innerHTML = Object.entries(ROUTES).map(([key, r]) => {
     if (key === 'podcasts' && !state.boot?.totals?.episodes) return '';
+    const label = t(r.title);
     return `<li><a class="nav__link" href="#/${key}" data-route="${key}"
-      title="${r.title}">${ICON[r.icon]}<span>${r.title}</span></a></li>`;
+      title="${esc(label)}">${ICON[r.icon]}<span>${esc(label)}</span></a></li>`;
   }).join('');
 }
 
@@ -88,13 +92,23 @@ function markNav() {
   });
 }
 
+/** Traduce los textos fijos del armazón (index.html). */
+function translateShell() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    if (!el.dataset.i18nSrc) el.dataset.i18nSrc = el.textContent.trim();
+    el.textContent = t(el.dataset.i18nSrc);
+  });
+  document.title = state.boot?.config?.lang === 'en'
+    ? 'Vinilo · your Spotify stats' : 'Vinilo · tus estadísticas de Spotify';
+}
+
 /* ─────────────────────────────  Filtros  ───────────────────────────── */
 function buildFilters() {
   const yearChips = (state.boot?.years || []).slice(0, 8).map((y) => [y, y]);
   const all = [...PERIODS.slice(0, 4), ...yearChips, PERIODS[4]];
   document.getElementById('periodChips').innerHTML = all.map(([v, label]) =>
     `<button type="button" class="chip" data-period="${v}"
-      aria-pressed="false">${label}</button>`).join('');
+      aria-pressed="false">${esc(t(label))}</button>`).join('');
   syncFilters();
 }
 
@@ -109,10 +123,9 @@ function syncFilters() {
   document.getElementById('dateFrom').value = state.params.from || '';
   document.getElementById('dateTo').value = state.params.to || '';
 
-  const hint = document.getElementById('rangeHint');
   const b = state.boot;
-  hint.textContent = b?.first_ts
-    ? `Tu historial va del ${fshort(b.first_ts)} al ${fshort(b.last_ts)}.`
+  document.getElementById('rangeHint').textContent = b?.first_ts
+    ? t('Tu historial va del {a} al {b}.', { a: fshort(b.first_ts), b: fshort(b.last_ts) })
     : '';
 
   // La barra de filtros no aporta nada en Ajustes.
@@ -133,7 +146,6 @@ async function renderView() {
   const route = ROUTES[state.route];
   if (!state.boot?.has_data && state.route !== 'ajustes') {
     main().innerHTML = welcome();
-    main().querySelector('[data-go]')?.focus();
     return;
   }
 
@@ -154,29 +166,30 @@ async function renderView() {
     window.scrollTo(0, 0);
   } catch (err) {
     if (err.name === 'AbortError' || token !== renderToken) return;
-    main().innerHTML = `<div class="head"><h1 class="head__title">${route.title}</h1></div>
-      ${alert('bad', `<b>Algo salió mal.</b> ${esc(err.message)}`)}
+    main().innerHTML = `<div class="head"><h1 class="head__title">${esc(t(route.title))}</h1></div>
+      ${alert('bad', `<b>${t('Algo salió mal.')}</b> ${esc(err.message)}`)}
       <div style="margin-top:var(--s-4)">
-        <button type="button" class="btn btn--primary" id="retry">Reintentar</button></div>`;
+        <button type="button" class="btn btn--primary" id="retry">${t('Reintentar')}</button></div>`;
     main().querySelector('#retry')?.addEventListener('click', () => renderView());
   }
 }
 
 const rangeLabel = () => {
   if (state.params.from && state.params.to) return `${state.params.from} → ${state.params.to}`;
-  return (PERIODS.find((p) => p[0] === state.params.period) || [null, state.params.period])[1];
+  const found = PERIODS.find((p) => p[0] === state.params.period);
+  return found ? t(found[1]) : state.params.period;
 };
 
 const welcome = () => `
   <div class="head">
-    <h1 class="head__title">Bienvenido a Vinilo</h1>
-    <p class="head__sub">Tus estadísticas de Spotify, calculadas acá adentro.</p>
+    <h1 class="head__title">${t('Bienvenido a Vinilo')}</h1>
+    <p class="head__sub">${t('Tus estadísticas de Spotify, calculadas acá adentro.')}</p>
   </div>
-  ${empty('Todavía no hay historial',
-    'Pedile a Spotify tu «Historial de reproducción ampliado» desde Cuenta → Privacidad. ' +
-    'Cuando llegue el mail con el .zip, importalo y en segundos tenés todo: ' +
-    'tus artistas y canciones más escuchadas, a qué hora escuchás, cómo cambió tu gusto año a año.',
-    '<button type="button" class="btn btn--primary" data-go="ajustes">Importar mi historial</button>')}`;
+  ${empty(t('Todavía no hay historial'),
+    t('Pedile a Spotify tu «Historial de reproducción ampliado» desde Cuenta → Privacidad. '
+      + 'Cuando llegue el mail con el .zip, importalo y en segundos tenés todo: '
+      + 'tus artistas y canciones más escuchadas, a qué hora escuchás, cómo cambió tu gusto año a año.'),
+    `<button type="button" class="btn btn--primary" data-go="ajustes">${t('Importar mi historial')}</button>`)}`;
 
 /* ─────────────────────────────  Widget de enriquecido  ───────────────────────────── */
 let enrichTimer = null;
@@ -194,9 +207,9 @@ async function watchEnrich() {
       return;
     }
     box.hidden = false;
-    const label = { tracks: 'canciones', artists: 'artistas', podcasts: 'podcasts' }[st.phase] || 'datos';
-    box.innerHTML = `<strong>Trayendo ${label}…</strong>
-      ${num(done)} de ${num(total)}${st.eta_s ? ` · ~${Math.ceil(st.eta_s / 60)} min` : ''}
+    const what = { tracks: t('canciones'), artists: t('artistas'), podcasts: t('podcasts') }[st.phase] || '';
+    box.innerHTML = `<strong>${t('Trayendo…')} ${esc(what)}</strong>
+      ${num(done)} / ${num(total)}${st.eta_s ? ` · ~${Math.ceil(st.eta_s / 60)} min` : ''}
       <div class="bar"><i style="width:${(done / total) * 100}%"></i></div>`;
   } catch {
     box.hidden = true;
@@ -215,9 +228,11 @@ async function boot() {
     state.boot = await api.bootstrap();
   } catch (err) {
     main().innerHTML = alert('bad',
-      `<b>No pude hablar con el servidor local.</b> ${esc(err.message)}`);
+      `<b>${t('No pude hablar con el servidor local.')}</b> ${esc(err.message)}`);
     return false;
   }
+  setLang(state.boot.config?.lang || 'es');
+  translateShell();
   buildNav();
   buildFilters();
   if (state.boot.spotify.configured) pollEnrich();
@@ -225,7 +240,6 @@ async function boot() {
 }
 
 function wire() {
-  // Período
   document.getElementById('periodChips').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-period]');
     if (!chip) return;
@@ -235,7 +249,6 @@ function wire() {
     renderView();
   });
 
-  // Orden
   document.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => {
     state.params.sort = b.dataset.sort;
     writeHash();
@@ -243,7 +256,6 @@ function wire() {
     renderView();
   }));
 
-  // Rango personalizado
   const dr = document.getElementById('daterange');
   const customBtn = document.getElementById('customBtn');
   customBtn.addEventListener('click', () => {
@@ -253,8 +265,8 @@ function wire() {
   document.getElementById('applyRange').addEventListener('click', () => {
     const from = document.getElementById('dateFrom').value;
     const to = document.getElementById('dateTo').value;
-    if (!from || !to) return toast('Elegí las dos fechas.', 'bad');
-    if (from > to) return toast('La fecha “desde” tiene que ser anterior.', 'bad');
+    if (!from || !to) return toast(t('Elegí las dos fechas.'), 'bad');
+    if (from > to) return toast(t('La fecha “desde” tiene que ser anterior.'), 'bad');
     state.params.from = from;
     state.params.to = to;
     writeHash();
@@ -277,12 +289,10 @@ function wire() {
     const open = e.target.closest('[data-open]');
     if (open && open.dataset.key) {
       e.preventDefault();
-      openDetail(open.dataset.open, open.dataset.key,
-        { ...state.params, label: rangeLabel() });
+      openDetail(open.dataset.open, open.dataset.key, { ...state.params, label: rangeLabel() });
     }
   });
 
-  // Panel lateral
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-close-sheet]')) closeSheet();
   });
@@ -300,6 +310,12 @@ function wire() {
   });
 }
 
+/** La usa Ajustes al cambiar de idioma: recarga todo sin refrescar la página. */
+export async function reloadAll() {
+  await boot();
+  renderView();
+}
+
 (async function start() {
   const parsed = parseHash();
   state.route = parsed.route;
@@ -308,14 +324,12 @@ function wire() {
   wire();
   if (!(await boot())) return;
 
-  // Preferencia de orden guardada en el servidor, si no vino en la URL.
   if (!new URLSearchParams(location.hash.split('?')[1] || '').get('sort')) {
     state.params.sort = state.boot.config.sort || 'plays';
   }
   if (!location.hash) writeHash();
   renderView();
 
-  // Si hay credenciales pero falta metadata, el worker arranca solo.
   if (state.boot.spotify.configured && !state.boot.enrich.running) {
     api.enrichStart(true).then(pollEnrich).catch(() => {});
   }

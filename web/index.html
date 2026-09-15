@@ -10,12 +10,12 @@
 </head>
 <body>
 
-<a class="skip-link" href="#main">Saltar al contenido</a>
+<a class="skip-link" href="#main" data-i18n>Saltar al contenido</a>
 
 <div class="shell">
 
   <!-- ─────────────────────────────  Navegación  ───────────────────────────── -->
-  <nav class="nav" aria-label="Secciones">
+  <nav class="nav" aria-label="Secciones" id="nav">
     <div class="nav__brand">
       <svg class="nav__disc" viewBox="0 0 32 32" aria-hidden="true">
         <circle cx="16" cy="16" r="15" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".35"/>
@@ -29,7 +29,8 @@
 
     <div class="nav__foot">
       <div class="nav__enrich" id="enrichWidget" hidden></div>
-      <p class="nav__note">Todo se calcula en tu máquina.<br>Nada de esto sale de acá.</p>
+      <p class="nav__note"><span data-i18n>Todo se calcula en tu máquina.</span><br>
+        <span data-i18n>Nada de esto sale de acá.</span></p>
     </div>
   </nav>
 
@@ -38,25 +39,25 @@
 
     <header class="filters" id="filters">
       <div class="filters__row">
-        <div class="chips" role="group" aria-label="Período" id="periodChips"></div>
+        <div class="chips" role="group" aria-label="Period" id="periodChips"></div>
 
         <div class="filters__right">
-          <div class="seg" role="group" aria-label="Ordenar por">
-            <button type="button" class="seg__btn" data-sort="plays">Reproducciones</button>
-            <button type="button" class="seg__btn" data-sort="ms">Tiempo</button>
+          <div class="seg" role="group" aria-label="Sort">
+            <button type="button" class="seg__btn" data-sort="plays" data-i18n>Reproducciones</button>
+            <button type="button" class="seg__btn" data-sort="ms" data-i18n>Tiempo</button>
           </div>
           <button type="button" class="btn btn--ghost" id="customBtn" aria-expanded="false">
             <svg viewBox="0 0 16 16" aria-hidden="true" class="ico"><path d="M5 1v2M11 1v2M2 6h12M3 3h10a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            Fechas
+            <span data-i18n>Fechas</span>
           </button>
         </div>
       </div>
 
       <div class="daterange" id="daterange" hidden>
-        <label>Desde <input type="date" id="dateFrom"></label>
-        <label>Hasta <input type="date" id="dateTo"></label>
-        <button type="button" class="btn btn--primary" id="applyRange">Aplicar</button>
-        <button type="button" class="btn btn--ghost" id="clearRange">Limpiar</button>
+        <label><span data-i18n>Desde</span> <input type="date" id="dateFrom"></label>
+        <label><span data-i18n>Hasta</span> <input type="date" id="dateTo"></label>
+        <button type="button" class="btn btn--primary" id="applyRange" data-i18n>Aplicar</button>
+        <button type="button" class="btn btn--ghost" id="clearRange" data-i18n>Limpiar</button>
         <p class="daterange__hint" id="rangeHint"></p>
       </div>
     </header>
@@ -69,7 +70,7 @@
 <div class="sheet" id="sheet" hidden>
   <div class="sheet__scrim" data-close-sheet></div>
   <aside class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-    <button type="button" class="sheet__close" data-close-sheet aria-label="Cerrar">
+    <button type="button" class="sheet__close" data-close-sheet aria-label="Close">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
     </button>
     <div class="sheet__body" id="sheetBody"></div>

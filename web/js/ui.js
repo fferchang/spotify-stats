@@ -3,6 +3,7 @@
 
 import { api } from './api.js';
 import { num, dur, pct, esc, fshort } from './fmt.js';
+import { t } from './i18n.js';
 
 /* ─────────────────────────────  Iconos  ───────────────────────────── */
 const P = (d, extra = '') =>
@@ -95,11 +96,13 @@ export const metaOf = (kind, key) => metaCache.get(`${kind}:${key}`) || null;
 
 /* ─────────────────────────────  Filas y mosaicos  ───────────────────────────── */
 export function row(item, kind, sort, opts = {}) {
-  const primary = sort === 'ms' ? dur(item.ms) : `${num(item.plays)} repr.`;
-  const secondary = sort === 'ms' ? `${num(item.plays)} repr.` : dur(item.ms);
+  const primary = sort === 'ms' ? dur(item.ms) : `${num(item.plays)} ${t('repr.')}`;
+  const secondary = sort === 'ms' ? `${num(item.plays)} ${t('repr.')}` : dur(item.ms);
   const sub = item.artist_name
-    ? `${esc(item.artist_name)} · ${pct(item.pct_plays)} de tus escuchas`
-    : `${num(item.days)} ${item.days === 1 ? 'día' : 'días'} distintos · ${pct(item.pct_plays)} de tus escuchas`;
+    ? t('{artist} · {pct} de tus escuchas',
+        { artist: esc(item.artist_name), pct: pct(item.pct_plays) })
+    : t('{n} días distintos · {pct} de tus escuchas',
+        { n: num(item.days), pct: pct(item.pct_plays) });
   const barPct = opts.maxValue ? Math.max(1.5, ((sort === 'ms' ? item.ms : item.plays) / opts.maxValue) * 100) : 0;
 
   return `<button type="button" class="row" data-open="${esc(opts.detailKind || kind)}" data-key="${esc(item.key)}">
@@ -118,7 +121,7 @@ export function row(item, kind, sort, opts = {}) {
 }
 
 export function rankList(items, kind, sort, opts = {}) {
-  if (!items.length) return empty('Nada por acá', 'No hay reproducciones en este período.');
+  if (!items.length) return empty(t('Nada por acá'), t('No hay reproducciones en este período.'));
   // Sin barra de proporción: en un top plano todas salen casi llenas y se leen
   // como un subrayado decorativo en vez de como un dato. Mandan los números.
   const maxValue = opts.bars ? Math.max(...items.map((i) => (sort === 'ms' ? i.ms : i.plays))) : 0;
@@ -126,7 +129,7 @@ export function rankList(items, kind, sort, opts = {}) {
 }
 
 export function tile(item, kind, sort) {
-  const value = sort === 'ms' ? dur(item.ms) : `${num(item.plays)} repr.`;
+  const value = sort === 'ms' ? dur(item.ms) : `${num(item.plays)} ${t('repr.')}`;
   return `<button type="button" class="tile" data-open="${kind.replace(/s$/, '')}" data-key="${esc(item.key)}">
     <span style="position:relative;display:block">
       <span class="tile__rank">${item.rank}</span>
@@ -142,7 +145,7 @@ export function tile(item, kind, sort) {
 export const tileGrid = (items, kind, sort) =>
   (items.length
     ? `<div class="grid">${items.map((i) => tile(i, kind, sort)).join('')}</div>`
-    : empty('Nada por acá', 'No hay reproducciones en este período.'));
+    : empty(t('Nada por acá'), t('No hay reproducciones en este período.')));
 
 /* ─────────────────────────────  Bloques varios  ───────────────────────────── */
 export const kpi = (label, value, unit, foot) => `<div class="kpi">
@@ -166,7 +169,7 @@ export const empty = (title, text, action = '') => `<div class="empty">
 export const alert = (kind, html) =>
   `<div class="alert alert--${kind}">${ICON.aviso}<div>${html}</div></div>`;
 
-export const loading = (label = 'Calculando…') =>
+export const loading = (label = t('Calculando…')) =>
   `<div class="stack" aria-busy="true" aria-label="${label}">
     <div class="skel" style="height:112px"></div>
     <div class="cols-3">${'<div class="skel" style="height:84px"></div>'.repeat(3)}</div>

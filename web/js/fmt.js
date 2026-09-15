@@ -1,29 +1,58 @@
-// Formateo de números, tiempos y fechas. Todo en es-AR.
+// Formateo de números, tiempos y fechas, sensible al idioma activo.
+//
+// Los nombres de meses y días se exportan con `let`: en módulos ES las
+// importaciones son vínculos vivos, así que `applyLocale()` los cambia y
+// quienes los importaron ven el valor nuevo sin recargar nada.
 
-const NUM = new Intl.NumberFormat('es-AR');
-const NUM1 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
-const DATE_LONG = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
-const DATE_SHORT = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: '2-digit' });
-const DATE_DAY = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' });
-const TIME = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' });
+import { t } from './i18n.js';
 
-export const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
-  'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-export const DIAS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
-export const DIAS_LARGO = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+let LOC = 'es-AR';
+let NUM = new Intl.NumberFormat(LOC);
+let NUM1 = new Intl.NumberFormat(LOC, { maximumFractionDigits: 1 });
+let DATE_LONG = new Intl.DateTimeFormat(LOC, { day: 'numeric', month: 'long', year: 'numeric' });
+let DATE_SHORT = new Intl.DateTimeFormat(LOC, { day: '2-digit', month: 'short', year: '2-digit' });
+let DATE_DAY = new Intl.DateTimeFormat(LOC, { day: 'numeric', month: 'short' });
+let TIME = new Intl.DateTimeFormat(LOC, { hour: '2-digit', minute: '2-digit' });
+
+export let MESES = [];
+export let DIAS = [];
+export let DIAS_LARGO = [];
+
+/** Reconstruye los formateadores y los nombres de meses/días. */
+export function applyLocale(lang) {
+  LOC = lang === 'en' ? 'en-US' : 'es-AR';
+  NUM = new Intl.NumberFormat(LOC);
+  NUM1 = new Intl.NumberFormat(LOC, { maximumFractionDigits: 1 });
+  DATE_LONG = new Intl.DateTimeFormat(LOC, { day: 'numeric', month: 'long', year: 'numeric' });
+  DATE_SHORT = new Intl.DateTimeFormat(LOC, { day: '2-digit', month: 'short', year: '2-digit' });
+  DATE_DAY = new Intl.DateTimeFormat(LOC, { day: 'numeric', month: 'short' });
+  TIME = new Intl.DateTimeFormat(LOC, { hour: '2-digit', minute: '2-digit' });
+
+  const shortMonth = new Intl.DateTimeFormat(LOC, { month: 'short' });
+  MESES = Array.from({ length: 12 }, (_, m) =>
+    shortMonth.format(new Date(2021, m, 15)).replace('.', ''));
+
+  const shortDay = new Intl.DateTimeFormat(LOC, { weekday: 'short' });
+  const longDay = new Intl.DateTimeFormat(LOC, { weekday: 'long' });
+  // 2024-01-01 fue lunes: así el índice 0 es siempre lunes.
+  DIAS = Array.from({ length: 7 }, (_, i) =>
+    shortDay.format(new Date(2024, 0, 1 + i)).replace('.', ''));
+  DIAS_LARGO = Array.from({ length: 7 }, (_, i) => longDay.format(new Date(2024, 0, 1 + i)));
+}
+
+applyLocale('es');
 
 export const num = (n) => NUM.format(Math.round(n || 0));
 export const num1 = (n) => NUM1.format(n || 0);
 export const pct = (n) => `${NUM1.format(n || 0)} %`;
 
-/** Tiempo escuchado, en la unidad que se lea mejor: "2.494 h" / "18 min". */
+/** Tiempo escuchado, en la unidad que se lea mejor: "2.443 h" / "18 min". */
 export function dur(ms) {
   const min = (ms || 0) / 60000;
   if (min < 1) return `${Math.round((ms || 0) / 1000)} s`;
   if (min < 90) return `${num(min)} min`;
   const h = min / 60;
-  if (h < 48) return `${num1(h)} h`;
-  return `${num(h)} h`;
+  return h < 48 ? `${num1(h)} h` : `${num(h)} h`;
 }
 
 /** Versión partida en número + unidad, para las cifras grandes. */
@@ -61,16 +90,16 @@ export function fdatetime(ts) {
   return `${DATE_DAY.format(d)} · ${TIME.format(d)}`;
 }
 
-/** "hace 3 días", "hace 2 meses" */
+/** "hace 3 días" / "3 days ago" */
 export function ago(ts) {
   if (!ts) return '—';
   const days = Math.floor((Date.now() / 1000 - ts) / 86400);
-  if (days <= 0) return 'hoy';
-  if (days === 1) return 'ayer';
-  if (days < 30) return `hace ${days} días`;
+  if (days <= 0) return t('hoy');
+  if (days === 1) return t('ayer');
+  if (days < 30) return t('hace {n} días', { n: days });
   const months = Math.round(days / 30.44);
-  if (months < 24) return `hace ${months} ${months === 1 ? 'mes' : 'meses'}`;
-  return `hace ${Math.round(days / 365.25)} años`;
+  if (months < 24) return t(months === 1 ? 'hace {n} mes' : 'hace {n} meses', { n: months });
+  return t('hace {n} años', { n: Math.round(days / 365.25) });
 }
 
 /** Etiqueta de un bucket de la serie temporal, según granularidad. */
@@ -78,32 +107,32 @@ export function bucketLabel(iso, gran) {
   const d = new Date(`${iso}T12:00:00`);
   if (gran === 'year') return String(d.getFullYear());
   if (gran === 'month') return `${MESES[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
-  if (gran === 'week') return `sem. del ${d.getDate()} ${MESES[d.getMonth()]}`;
+  if (gran === 'week') return t('sem. del {d}', { d: DATE_DAY.format(d) });
   return DATE_DAY.format(d);
 }
 
 export const hourLabel = (h) => `${String(h).padStart(2, '0')}:00`;
 
 /** Traducciones de los códigos crudos del export de Spotify. */
-export const REASON = {
+const REASON = {
   trackdone: 'Terminó sola', fwdbtn: 'Botón siguiente', backbtn: 'Botón anterior',
   clickrow: 'Clic en la lista', playbtn: 'Botón reproducir', appload: 'Al abrir la app',
   remote: 'Control remoto', endplay: 'Se detuvo', logout: 'Cerró sesión',
-  trackerror: 'Error de reproducción', unknown: 'Desconocido', unexpected_exit: 'Salida inesperada',
-  unexpected_exit_while_paused: 'Salió en pausa', clickside: 'Clic lateral',
-  popup: 'Ventana emergente', uriopen: 'Enlace abierto', switched_to_video: 'Pasó a video',
-  persisted: 'Reanudada', autoplay: 'Reproducción automática',
+  trackerror: 'Error de reproducción', unknown: 'Desconocido',
+  unexpected_exit: 'Salida inesperada', unexpected_exit_while_paused: 'Salió en pausa',
+  clickside: 'Clic lateral', popup: 'Ventana emergente', uriopen: 'Enlace abierto',
+  switched_to_video: 'Pasó a video', persisted: 'Reanudada', autoplay: 'Reproducción automática',
 };
-export const reason = (r) => REASON[r] || r || 'Desconocido';
+export const reason = (r) => (REASON[r] ? t(REASON[r]) : (r || t('Desconocido')));
 
-const REGION = new Intl.DisplayNames(['es'], { type: 'region' });
 export function country(code) {
-  if (!code) return 'Desconocido';
-  try { return REGION.of(code) || code; } catch { return code; }
+  if (!code) return t('Desconocido');
+  try {
+    return new Intl.DisplayNames([LOC], { type: 'region' }).of(code) || code;
+  } catch {
+    return code;
+  }
 }
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-/** Las claves internas usan  como separador artista/título. */
-export const keyTitle = (k) => String(k || '').split('').pop();

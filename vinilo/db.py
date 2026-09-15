@@ -102,7 +102,19 @@ def init(path: str | Path) -> None:
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = conn()
     con.executescript(SCHEMA)
+    _migrate(con)
     con.commit()
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    """Cambios de esquema sobre bases ya creadas."""
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(plays)")}
+    if "origin" not in cols:
+        # De dónde salió la fila: el export es de alta fidelidad (trae ms
+        # reales, saltos, dispositivo); el sync en vivo no. Hay que poder
+        # distinguirlas para no mezclar peras con manzanas en los porcentajes.
+        con.execute("ALTER TABLE plays ADD COLUMN origin TEXT NOT NULL DEFAULT 'export'")
+        con.execute("CREATE INDEX IF NOT EXISTS ix_plays_origin ON plays(origin, ts)")
 
 
 def conn() -> sqlite3.Connection:
